@@ -156,6 +156,8 @@ def calculate_authorized_users(logs):
             if new_entry['authorized_user'] not in unique_authorized_users_by_month[month]:
                 unique_authorized_users_by_month[month].add(new_entry['authorized_user'])
                 authorized_user_counts_by_month[new_entry['type']][month] += 1
+        else:
+            print(new_entry)
 
     return user_detail, authorized_user_counts_by_month, unique_authorized_users_by_month
 
