@@ -168,14 +168,3 @@ def get_authorized_user_counts():
         calculate_authorized_users(all_logs)
 
     return user_detail, authorized_user_counts_by_month, unique_authorized_users_by_month
-
-# def main():
-#     try:
-#         user_detail, authorized_user_counts_by_month, unique_authorized_users_by_month = get_authorized_user_counts()
-#
-#     except Exception as e:
-#         print('Error: ' + str(e))
-#         traceback.print_exc()
-#
-# if __name__ == '__main__':
-#     main()
