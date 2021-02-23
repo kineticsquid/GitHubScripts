@@ -63,6 +63,7 @@ def get_all_logs():
 This routine processes the /logs JSON to generate a flatter data structure without PI for further processing:
  
     'user_detail':
+        - request_month - 3 char month when the /message call was made (e.g. 'Jan', 'Feb')
         - request_date - date when the /message call was made
         - request_time - time when the /message call was made
         - authorized_user - string used to determine who the user is
@@ -166,13 +167,13 @@ def get_authorized_user_counts():
 
     return user_detail, authorized_user_counts_by_month, unique_authorized_users_by_month
 
-def main():
-    try:
-        user_detail, authorized_user_counts_by_month, unique_authorized_users_by_month = get_authorized_user_counts()
-
-    except Exception as e:
-        print('Error: ' + str(e))
-        traceback.print_exc()
-
-if __name__ == '__main__':
-    main()
+# def main():
+#     try:
+#         user_detail, authorized_user_counts_by_month, unique_authorized_users_by_month = get_authorized_user_counts()
+#
+#     except Exception as e:
+#         print('Error: ' + str(e))
+#         traceback.print_exc()
+#
+# if __name__ == '__main__':
+#     main()
