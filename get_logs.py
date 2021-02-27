@@ -1,23 +1,6 @@
-import traceback
 import requests
 import datetime
 import os
-
-API_VERSION = '2020-04-01'
-LOGS_API = '/v1/workspaces/%s/logs?version=%s'
-WORKSPACES_API = '/v1/workspaces?version=%s'
-
-if 'APIKEY' in os.environ:
-    APIKEY = os.environ['APIKEY']
-else:
-    raise Exception('Error no environment variable \'APIKEY\' defined.')
-if 'API_URL' in os.environ:
-    API_URL = os.environ['API_URL']
-else:
-    raise Exception('Error no environment variable \'API_URL\' defined.')
-http_headers = {'Content-Type': 'application/json',
-                'Accept': 'application/json'}
-auth = ('APIKEY', APIKEY)
 
 """
 This routine returns all the logs in JSON (/v1 and /v2 message calls) for all work spaces for a given
@@ -25,6 +8,22 @@ service instance of Watson Assistant.
 """
 
 def get_all_logs():
+    API_VERSION = '2020-04-01'
+    LOGS_API = '/v1/workspaces/%s/logs?version=%s'
+    WORKSPACES_API = '/v1/workspaces?version=%s'
+
+    if 'APIKEY' in os.environ:
+        APIKEY = os.environ['APIKEY']
+    else:
+        raise Exception('Error no environment variable \'APIKEY\' defined.')
+    if 'API_URL' in os.environ:
+        API_URL = os.environ['API_URL']
+    else:
+        raise Exception('Error no environment variable \'API_URL\' defined.')
+    http_headers = {'Content-Type': 'application/json',
+                    'Accept': 'application/json'}
+    auth = ('APIKEY', APIKEY)
+    
     # Get all the workspaces
     workspaces_url = API_URL + WORKSPACES_API % API_VERSION
     response = requests.get(workspaces_url, auth=auth, headers=http_headers)
@@ -70,6 +69,7 @@ This routine processes the /logs JSON to generate a flatter data structure witho
         - type - how the 'authorized_user' value was determined; by field 'user_id', 'session_id' or 'conversation_id'
         - dialog_turn_counter' - what turn of the conversation this /message call represents
         - text_length - length of the input utterance; 0 if none
+        - billable - True or False indicating if this request/response and associated user_id is billable. 
         - workspace_id - workspace of this /message request
 
 Based on this detail, this routine also calculates unique users by month and lists of the ids of those users by
@@ -105,21 +105,29 @@ def calculate_authorized_users(logs):
     for entry in logs:
         # Get the authorized user id based on what fields in the /message payload were set. In priority
         # order, user_id, session_id, conversation_id.
+        user_id = None
         user_id = entry['request'].get('user_id')
         if user_id is not None:
             # user_id is set so record this value as the authorized user. This is the same for
             # both /v1/message and /v2/message
-            type = 'user_id'
+            user_id_type = 'user_id'
         else:
+            # Otherwise, look for user_id in context metadata, for /v1/message
+            metadata = entry['response']['context'].get('metadata')
+            if metadata is not None:
+                user_id = metadata.get('user_id')
+                if user_id is not None:
+                    user_id_type = 'user_id'
+        if user_id is None:
             user_id = entry['response']['context']['system'].get('session_id')
             if user_id is not None:
-                # if we can't find user_id, the look for the substitute. If we fine session_id
+                # if we can't find user_id, the look for the substitute. If we find session_id
                 # it means this is a /v2/message call, use it.
-                type = 'session_id'
+                user_id_type = 'session_id'
             else:
                 # otherwise, user conversation_id. Both /v1/message and /v2/message
                 user_id = entry['response']['context']['conversation_id']
-                type = 'conversation_id'
+                user_id_type = 'conversation_id'
 
         # Get the utterance text if there is input. We're getting this solely to get its length. For
         # privacy reasons, we are saving on the length to indicate if there was input.
@@ -137,16 +145,22 @@ def calculate_authorized_users(logs):
                     'request_date': request_timestamp.strftime('%Y-%m-%d'),
                      'request_time': request_timestamp.strftime('%H:%M:%S'),
                      'authorized_user': user_id,
-                     'type': type,
+                     'type': user_id_type,
                      'dialog_turn': int(entry['response']['context']['system']['dialog_turn_counter']),
                      'text_length': len(utterance_text),
                      'workspace_id': entry['workspace_id']}
+        # Mark this entry as billable, and adding this user_id as an authorized user if there is text input
+        # or if we are past the first turn of the dialog. Conversely, do not mark this as billable if there
+        # is no text input and we are on the first turn of the dialog. We're using 'True' and 'False' strings here
+        # instead of True and False in order to make the export to CSV work.
+        if new_entry['dialog_turn'] <= 1 and new_entry['text_length'] == 0:
+            new_entry['billable'] = 'False'
+        else:
+            new_entry['billable'] = 'True'
         user_detail.append(new_entry)
 
-        # Now, add this as an authorized user if there is text input or we are past the first turn of the dialog.
-        # Conversely, do not add this as an authorized user if there is no text input and we are on the first
-        # turn of the dialog.
-        if new_entry['dialog_turn'] > 1 or new_entry['text_length'] > 0:
+        # Add this as an authorized user if we've determined the request/response is billable
+        if new_entry['billable'] == 'True':
             month = new_entry['request_month']
             if month not in unique_authorized_users_by_month.keys():
                 unique_authorized_users_by_month[month] = set()
@@ -156,8 +170,6 @@ def calculate_authorized_users(logs):
             if new_entry['authorized_user'] not in unique_authorized_users_by_month[month]:
                 unique_authorized_users_by_month[month].add(new_entry['authorized_user'])
                 authorized_user_counts_by_month[new_entry['type']][month] += 1
-        else:
-            print(new_entry)
 
     return user_detail, authorized_user_counts_by_month, unique_authorized_users_by_month
 
