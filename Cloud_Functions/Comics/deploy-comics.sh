@@ -6,7 +6,7 @@ ibmcloud fn namespace target Kellerman-Functions
 
 ibmcloud fn action update utils/Comics ./comics.py --kind python:3.7
 
-ibmcloud fn trigger update "Comics Daily" -p GMAIL_ID ${GMAIL_ID} -p GMAIL_PW ${GMAIL_PW} -p TARGET_EMAIL ${TARGET_EMAIL} --param cron "0 8 * * *"
+ibmcloud fn trigger update "Comics Daily" -p GMAIL_ID ${GMAIL_ID} -p GMAIL_PW ${GMAIL_PW} -p TARGET_EMAIL ${TARGET_EMAIL} --param cron "0 12 * * *"
 
 ibmcloud fn rule update comics_rule "Comics Daily" utils/Comics
 

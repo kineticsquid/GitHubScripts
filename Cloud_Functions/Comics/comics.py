@@ -22,7 +22,8 @@ COMICSKINGDOM_REGEX = r'(og:image\"\s+content=\")([^\"]+)'
 DILBERT_URL = 'https://dilbert.com/'
 DILBERT_REGEX = r'(data-image=\")([^\"]+)'
 FARSIDE_URL = 'https://www.thefarside.com'
-FARSIDE_REGEX = r'(.+data-src=\")([^\"]+)'
+FARSIDE_IMAGE_REGEX = r'(.+data-src=\")([^\"]+)'
+FARSIDE_CAPTION_REGEX = r'(.+<figcaption class=\"figure-caption\">\s+)([^\n]+)'
 
 EMAIL_SSL_PORT = 465  # For SSL
 
@@ -50,11 +51,11 @@ COMICS = [
     {"name": "farside", "source": FARSIDE}
 ]
 
-def get_image_url(comic_url, comic_regex):
+def get_image_url(comic_url, comic_regex, verify=True):
     # This assumes the regex returns the desired image url in group(2) of the regex match
     image_url = None
     # verify=False is to eliminate the error, requests.exceptions.SSLError: [SSL: CERTIFICATE_VERIFY_FAILED]
-    response = requests.get(comic_url, verify=False)
+    response = requests.get(comic_url, verify=verify)
     if response.status_code == 200:
         results = response.content.decode('utf-8')
         regex_match = re.search(comic_regex, results)
@@ -64,8 +65,9 @@ def get_image_url(comic_url, comic_regex):
         print('%s error calling %s: %s' % (response.status_code, comic_url, response.content))
     return image_url
 
-def get_image(comic_url,comic_regex):
+def get_farside(comic_url, comic_regex, caption_regex):
     image = None
+    caption = None
     response = requests.get(comic_url, verify=False)
     if response.status_code == 200:
         results = response.content.decode('utf-8')
@@ -78,7 +80,10 @@ def get_image(comic_url,comic_regex):
                 base64_bytes = base64.b64encode(response.content)
                 base64_string = base64_bytes.decode('utf-8')
                 image = "data:image/jpeg;base64,%s" % base64_string
-    return image
+        regex_match = re.search(caption_regex, results)
+        if regex_match is not None and len(regex_match.groups()) >= 2:
+            caption = regex_match.group(2)
+    return image, caption
 
 def format_email(results, date_string):
     text_opening = 'Hi,\n\nHere are your daily comics for %s:\n' % date_string
@@ -87,7 +92,9 @@ def format_email(results, date_string):
     html_opening += '\n\t\t<style>\n\t\t\tbody,html {background-color: #6b7b84; height: 100%; margin-top: 30px; margin-bottom: 30px; margin-left: 30px; margin-right: 30px; font-size: 125%;}'
     html_opening += '\n\t\t\t.mono {font-family: "Lucida Console", "Courier New", monospace;}'
     html_opening += '\n\t\t\tp.pad {padding-bottom: 50px; font-family: "Lucida Console", "Courier New", monospace;}'
-    html_opening += '\n\t\t\th1,h2,h3 {color: black;}'
+    html_opening += '\n\t\t\tp.caption {text-align: center; font-family: "Lucida Console", "Courier New", monospace;}'
+    html_opening += '\n\t\t\th1 {color: black;}'
+    html_opening += '\n\t\t\th2 {color: black; padding-top: 20px;}'
     html_opening += '\n\t\t\timg {max-width: 100%; height: auto; box-shadow: 5px 10px 18px #111111;}\n\t\t</style>'
     html_opening += '\n\t</head>\n\t<body>\n\t\t<basefont face = "courier">'
     html_opening += '\n\t\t<h1 class="mono">%s</h1>' % date_string
@@ -107,6 +114,7 @@ def format_email(results, date_string):
         elif entry['name'] == 'farside' and entry['image'] is not None:
             html += '\n\t\t\t<a href="%s">' % FARSIDE_URL
             html += '\n\t\t\t<img src="%s" alt="%s">' % (entry['image'], entry['name'])
+            html += '\n\t\t\t<p class="caption"><b>%s</b>' % entry['caption']
         else:
             html += '\n\t\t\t<p class="pad"><b>No comic for today.</b>'
         html += '</a>'
@@ -138,19 +146,20 @@ def send_email(text, html, GMAIL_ID, GMAIL_PW, TARGET_EMAIL):
 def process_comic(comic, today_date_string, results):
     image_url = None
     image = None
+    caption = None
     if comic['source'] == GOCOMICS:
         url = "%s%s/%s" % (GOCOMICS_URL, comic['name'], today_date_string)
         image_url = get_image_url(url, GOCOMICS_REGEX)
     elif comic['source'] == COMICSKINGDOM:
         url = "%s%s" % (COMICSKINGDOM_URL, comic['name'])
-        image_url = get_image_url(url, COMICSKINGDOM_REGEX)
+        image_url = get_image_url(url, COMICSKINGDOM_REGEX, verify=False)
     elif comic['source'] == DILBERT:
         url = DILBERT_URL
         image_url = get_image_url(DILBERT_URL, DILBERT_REGEX)
     elif comic['source'] == FARSIDE:
         url = FARSIDE_URL
         image_url = None
-        image = get_image(FARSIDE_URL, FARSIDE_REGEX)
+        image, caption = get_farside(FARSIDE_URL, FARSIDE_IMAGE_REGEX, FARSIDE_CAPTION_REGEX)
     else:
         raise Exception('Invalid comic type.')
 
@@ -158,7 +167,11 @@ def process_comic(comic, today_date_string, results):
         new_entry = {'name': comic['name'], 'comics_url': url, 'image_url': image_url}
         print(new_entry)
     elif comic['source'] == FARSIDE and image is not None:
-        new_entry = {'name': comic['name'], 'comics_url': url, 'image_url': image_url, 'image': image}
+        new_entry = {'name': comic['name'],
+                     'comics_url': url,
+                     'image_url': image_url,
+                     'image': image,
+                     'caption': caption}
     else:
         print('Comic %s not found for %s.' % (comic['name'], today_date_string))
         new_entry = {'name': comic['name'], 'comics_url': url, 'image_url': image_url}
