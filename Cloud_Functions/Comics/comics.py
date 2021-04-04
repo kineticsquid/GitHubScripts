@@ -9,6 +9,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import sys
 import base64
+from bs4 import BeautifulSoup, Tag
 
 GOCOMICS = 'gocomics'
 COMICSKINGDOM = 'comicskingdom'
@@ -65,7 +66,47 @@ def get_image_url(comic_url, comic_regex, verify=True):
         print('%s error calling %s: %s' % (response.status_code, comic_url, response.content))
     return image_url
 
-def get_farside(comic_url, comic_regex, caption_regex):
+def get_farside(comic_url):
+    image = None
+    image_url = None
+    caption = None
+    response = requests.get(comic_url, verify=False)
+    if response.status_code == 200:
+        html = response.content.decode('utf-8')
+        soup = BeautifulSoup(html)
+        results = soup.find_all(class_='tfs-comic__image')
+        todays_comic = results[0]
+        children = todays_comic.children
+        for child in children:
+            if type(child) == Tag:
+                image_url = child.attrs.get('data-src')
+                break
+
+        next = todays_comic.next_sibling
+        while next is not None:
+            if type(next) == Tag:
+                attrs = next.attrs
+                class_ = attrs.get('class')
+                if class_ is not None:
+                    if 'tfs-comic__caption' in class_:
+                        caption = next.text
+                        break
+                    elif 'tfs-comic__image' in class_ or 'tfs-content__1col' in class_:
+                        break
+            else:
+                next = next.next_sibling
+
+        if image_url is not None:
+            headers = {'referer': 'https://www.thefarside.com/'}
+            response = requests.get(image_url, headers=headers, verify=False)
+            if response.status_code == 200:
+                base64_bytes = base64.b64encode(response.content)
+                base64_string = base64_bytes.decode('utf-8')
+                image = "data:image/jpeg;base64,%s" % base64_string
+
+    return image, caption
+
+def get_farside_old(comic_url, comic_regex, caption_regex):
     image = None
     caption = None
     response = requests.get(comic_url, verify=False)
@@ -95,6 +136,7 @@ def format_email(results, date_string):
     html_opening += '\n\t\t\tp.caption {text-align: center; font-family: "Lucida Console", "Courier New", monospace;}'
     html_opening += '\n\t\t\th1 {color: black;}'
     html_opening += '\n\t\t\th2 {color: black; padding-top: 20px;}'
+    html_opening += '\n\t\t\ta {color: black;}'
     html_opening += '\n\t\t\timg {max-width: 100%; height: auto; box-shadow: 5px 10px 18px #111111;}\n\t\t</style>'
     html_opening += '\n\t</head>\n\t<body>\n\t\t<basefont face = "courier">'
     html_opening += '\n\t\t<h1 class="mono">%s</h1>' % date_string
@@ -114,7 +156,8 @@ def format_email(results, date_string):
         elif entry['name'] == 'farside' and entry['image'] is not None:
             html += '\n\t\t\t<a href="%s">' % FARSIDE_URL
             html += '\n\t\t\t<img src="%s" alt="%s">' % (entry['image'], entry['name'])
-            html += '\n\t\t\t<p class="caption"><b>%s</b>' % entry['caption']
+            if entry['caption'] is not None:
+                html += '\n\t\t\t<p class="caption"><b>%s</b>' % entry['caption']
         else:
             html += '\n\t\t\t<p class="pad"><b>No comic for today.</b>'
         html += '</a>'
@@ -159,7 +202,7 @@ def process_comic(comic, today_date_string, results):
     elif comic['source'] == FARSIDE:
         url = FARSIDE_URL
         image_url = None
-        image, caption = get_farside(FARSIDE_URL, FARSIDE_IMAGE_REGEX, FARSIDE_CAPTION_REGEX)
+        image, caption = get_farside(FARSIDE_URL)
     else:
         raise Exception('Invalid comic type.')
 
