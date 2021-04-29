@@ -4,12 +4,17 @@ import traceback
 import re
 from threading import Thread
 import os
-import smtplib, ssl
+import smtplib
+import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import sys
 import base64
 from bs4 import BeautifulSoup, Tag
+import urllib3
+
+# This next statement is to supress 'InsecureRequestWarning' messages
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 GOCOMICS = 'gocomics'
 COMICSKINGDOM = 'comicskingdom'
@@ -30,6 +35,7 @@ EMAIL_SSL_PORT = 465  # For SSL
 
 COMICS = [
     {"name": "luann", "source": GOCOMICS},
+    {"name": "9chickweedlane", "source": GOCOMICS},
     {"name": "dilbert", "source": DILBERT},
     {"name": "dilbert-classics", "source": GOCOMICS},
     {"name": "zits", "source": COMICSKINGDOM},
@@ -43,6 +49,7 @@ COMICS = [
     {"name": "bloomcounty", "source": GOCOMICS},
     {"name": "outland", "source": GOCOMICS},
     {"name": "getfuzzy", "source": GOCOMICS},
+    {"name": "funky-winkerbean", "source": COMICSKINGDOM},
     {"name": "theflyingmccoys", "source": GOCOMICS},
     {"name": "closetohome", "source": GOCOMICS},
     {"name": "boundandgagged", "source": GOCOMICS},
@@ -73,7 +80,9 @@ def get_farside(comic_url):
     response = requests.get(comic_url, verify=False)
     if response.status_code == 200:
         html = response.content.decode('utf-8')
-        soup = BeautifulSoup(html)
+        # 'features' is specified to eliminate the
+        # 'GuessedAtParserWarning: No parser was explicitly specified' warning
+        soup = BeautifulSoup(html, features="lxml")
         results = soup.find_all(class_='tfs-comic__image')
         todays_comic = results[0]
         children = todays_comic.children
@@ -104,26 +113,6 @@ def get_farside(comic_url):
                 base64_string = base64_bytes.decode('utf-8')
                 image = "data:image/jpeg;base64,%s" % base64_string
 
-    return image, caption
-
-def get_farside_old(comic_url, comic_regex, caption_regex):
-    image = None
-    caption = None
-    response = requests.get(comic_url, verify=False)
-    if response.status_code == 200:
-        results = response.content.decode('utf-8')
-        regex_match = re.search(comic_regex, results)
-        if regex_match is not None and len(regex_match.groups()) >= 2:
-            image_url = regex_match.group(2)
-            headers = {'referer': 'https://www.thefarside.com/'}
-            response = requests.get(image_url, headers=headers, verify=False)
-            if response.status_code == 200:
-                base64_bytes = base64.b64encode(response.content)
-                base64_string = base64_bytes.decode('utf-8')
-                image = "data:image/jpeg;base64,%s" % base64_string
-        regex_match = re.search(caption_regex, results)
-        if regex_match is not None and len(regex_match.groups()) >= 2:
-            caption = regex_match.group(2)
     return image, caption
 
 def format_email(results, date_string):
