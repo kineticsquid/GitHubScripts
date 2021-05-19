@@ -234,10 +234,12 @@ def main():
         # Get the ASoC apps I have access to subject to the filter, if specified
         parameters = {'$orderby': 'Name',
                       '$top': 5000}
-        if apps_filter is not None:
-            parameters['$filter'] = apps_filter
-        apps = api_invoker.invoke(function=requests.get, api='/Apps',
+        all_apps = api_invoker.invoke(function=requests.get, api='/Apps',
                                      parameters=parameters)
+        apps = []
+        for app in all_apps:
+            if apps_filter in app['Name']:
+                apps.append(app)
 
         # Begin the output by writing the column headers
         output_file.write('Report Name, Date, Type, Tool, Component, Category, Severity, API Vuln, API, Location\n')
