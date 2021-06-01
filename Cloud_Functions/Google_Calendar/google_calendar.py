@@ -10,14 +10,16 @@ calendar menu id = 'nfdcum6lvge3s6f3mnl78k25ro@group.calendar.google.com'
 import datetime
 from googleapiclient.discovery import build
 from oauth2client import file, client, tools
-from flask import Flask, request
+from flask import Flask, request, jsonify
 import os
+import json
 
 PORT = os.getenv('PORT', '5040')
 # If modifying these scopes, delete the file token.json.
 # SCOPES = 'https://www.googleapis.com/auth/calendar.readonly'
 SCOPES = 'https://www.googleapis.com/auth/calendar'
 MENU_CALENDAR_ID = 'nfdcum6lvge3s6f3mnl78k25ro@group.calendar.google.com'
+CALENDAR_SERVICE_URL = 'https://calendar.johnkellerman.org'
 
 app = Flask(__name__)
 
@@ -45,6 +47,7 @@ def index():
     # calendars = service.calendarList().list().execute()
 
     if args.get('test', None) != None:
+        testing_results = []
         testing = True
         print("Testing...")
     else:
@@ -54,7 +57,6 @@ def index():
         thisday_ordinal = datetime.datetime.now().toordinal()
     else:
         thisday_ordinal = int(thisday_ordinal)
-    host_url = request.host_url
     number_successful = 0
     print("Results:")
     for day in range(thisday_ordinal + 1, thisday_ordinal + 8):
@@ -62,8 +64,7 @@ def index():
         next_day = datetime.datetime.fromordinal(day + 1).strftime("%Y-%m-%d")
         if day == thisday_ordinal + 7:
             new_event = {"start": {"date": this_day}, "end": {"date": next_day},
-                         "description": "\n\n%s?thisday=%s" % (host_url, str(
-                             day)),
+                         "description": "\n\n<a href=\"%s?thisday=%s\">Create next week\'s entries</a>" % (CALENDAR_SERVICE_URL, str(day)),
                          "notes": day}
         else:
             new_event = {"start": {"date": this_day}, "end": {"date": next_day},
@@ -74,12 +75,16 @@ def index():
                 number_successful += 1
             print(insert_result)
         else:
-            print(new_event)
-
-    return_result = "Created %s calendar entries starting on %s" % \
+            testing_results.append(new_event)
+    if not testing:
+        return_result = "Created %s calendar entries starting on %s" % \
                     (number_successful, datetime.datetime.fromordinal(thisday_ordinal + 1).strftime("%Y-%m-%d"))
-    print(return_result)
-    return return_result
+        print(return_result)
+        return return_result
+    else:
+        print(json.dumps(testing_results))
+        return jsonify(testing_results)
+
 
 @app.route('/build')
 def this_build():

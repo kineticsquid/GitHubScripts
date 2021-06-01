@@ -1,4 +1,4 @@
-FROM python:3.9.4-slim
+FROM python:3.9-alpine
 
 # Set the working directory to /app
 WORKDIR /app
@@ -13,7 +13,7 @@ ADD token.json /app
 ADD credentials.json /app
 ADD tag-build.sh /app/
 RUN mkdir /app/static
-RUN /app/tag-build.sh > /app/static/build.txt
+RUN date > /app/static/build.txt
 
 RUN ls -R
 RUN cat /app/static/build.txt

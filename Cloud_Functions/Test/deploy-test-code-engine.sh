@@ -1,11 +1,14 @@
 #!/bin/bash
 
-ibmcloud target -r us-south
-ibmcloud target -g default
-ibmcloud ce project select --name Test
+ic target -r us-south
+ic target -g default
+ic ce proj select -n Test
 
-ibmcloud ce application update --name test --image docker.io/kineticsquid/test:latest
-ibmcloud ce revision list --application test
-ibmcloud ce application events --application test
-ibmcloud ce application logs --app test
+REV=$(date +"%y-%m-%d-%H-%M-%S")
+echo ${REV}
+
+ic ce app update -n test --min 1 -i docker.io/kineticsquid/test:latest --rn ${REV}
+ic ce rev list --app test
+ic ce app events --app test
+ic ce app logs --app test
 
