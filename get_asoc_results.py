@@ -155,7 +155,7 @@ Routine to generate a report for a scan
 """
 
 
-def generate_report(api_invoker, scan, issues_filter):
+def generate_scan_report(api_invoker, scan, issues_filter):
 
     config = {
         "Configuration": {
@@ -170,7 +170,7 @@ def generate_report(api_invoker, scan, issues_filter):
             "IsTrialReport": True,
             "MinimizeDetails": True,
             "ReportFileType": "Html",
-            "Title": scan['Name'],
+            "Title": "Scan: %s" % scan['Name'],
             "Notes": "Notes",
             "Locale": "Locale"
         },
@@ -181,10 +181,49 @@ def generate_report(api_invoker, scan, issues_filter):
         ]
     }
     if issues_filter is not None:
-        config['OdataFilter'] =  "(%s)" % issues_filter
+        config['OdataFilter'] = "(%s)" % issues_filter
     data = config
     results = api_invoker.invoke(function=requests.post,
                                  api='/Reports/Security/Scan/%s' % scan['Id'],
+                                 data=data)
+    return results
+
+
+"""
+Routine to generate a report for an application
+"""
+
+
+def generate_app_report(api_invoker, app, issues_filter):
+
+    config = {
+        "Configuration": {
+            "Summary": True,
+            "Details": True,
+            "Discussion": True,
+            "Overview": True,
+            "TableOfContent": True,
+            "Advisories": True,
+            "FixRecommendation": True,
+            "History": True,
+            "IsTrialReport": True,
+            "MinimizeDetails": True,
+            "ReportFileType": "Html",
+            "Title": "App: %s" % app['Name'],
+            "Notes": "Notes",
+            "Locale": "Locale"
+        },
+        "OdataFilter": "",
+        "ApplyPolicies": "None",
+        "SelectPolicyIds": [
+            "00000000-0000-0000-0000-000000000000"
+        ]
+    }
+    if issues_filter is not None:
+        config['OdataFilter'] = "(%s)" % issues_filter
+    data = config
+    results = api_invoker.invoke(function=requests.post,
+                                 api='/Reports/Issues/Application/%s' % app['Id'],
                                  data=data)
     return results
 
@@ -244,12 +283,14 @@ def main():
         # Begin the output by writing the column headers
         output_file.write('Report Name, Date, Type, Tool, Component, Category, Severity, API Vuln, API, Location\n')
 
+
         # This list holds the ids of the reports being generated. Need to use this to later check for status and
         # when complete, download the reports
         reports = []
 
         # Loop through all the ASoC apps
         for app in apps:
+
             print('Processing %s' % app['Name'])
             # Get the scans for this app
             parameters = {'$orderby': 'LastModified',
@@ -270,7 +311,8 @@ def main():
                                             parameters=parameters)
                 if issues is not None and len(issues) > 0:
                     # If we have issues, generate an html report with issue detail for reference and save the ID
-                    reports.append(generate_report(api_invoker=api_invoker, scan=most_recent_scan, issues_filter=issues_filter))
+                    reports.append(generate_scan_report(api_invoker=api_invoker, scan=most_recent_scan, issues_filter=issues_filter))
+                    # reports.append(generate_app_report(api_invoker=api_invoker, app=app, issues_filter=None))
                     # Finally output the issues
                     for issue in issues:
                         output_file.writelines('%s, %s, %s, %s, %s, %s, %s, %s, %s, %s\n' % (

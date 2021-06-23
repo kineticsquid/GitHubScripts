@@ -18,6 +18,7 @@ def main():
             for number in phone_numbers:
                 print("\t%s - %s" % (number.friendly_name, number.phone_number))
         else:
+            trunk.delete()
             print("\t** No associated phone numbers **")
 
 if __name__ == '__main__':
