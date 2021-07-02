@@ -13,17 +13,6 @@ import matplotlib as plt
 API_KEY = os.environ['API_KEY']
 SITE_ID = os.environ['SITE_ID']
 
-DUKE_DATA = [
-    {'start': '2021-05-06',
-     'end': '2021-05-24',
-     'used': 270.0,
-     'delivered': 522.0},
-    {'start': '2021-05-25',
-     'end': '2021-06-03',
-     'used': 679.0,
-     'delivered': 593.0}
-]
-
 def issue_request(url):
     response = requests.get(url)
     if response.status_code != 200:
@@ -79,11 +68,11 @@ def get_data():
         purchased = energy_details['Purchased'][i].get('value', 0.0)
         joined_entry = {
             'date': energy_details['FeedIn'][i]['date'],
-            'FeedIn': feedIn,
-            'Production': production,
-            'Consumption': consumption,
-            'SelfConsumption': self_consumption,
-            'Purchased': purchased
+            'FeedIn': feedIn/1000,
+            'Production': production/1000,
+            'Consumption': consumption/1000,
+            'SelfConsumption': self_consumption/1000,
+            'Purchased': purchased/1000
         }
         joined_energy_details.append(joined_entry)
     return energy_details, joined_energy_details
