@@ -7,9 +7,22 @@ import requests
 import json
 import os
 import datetime
+import pandas as pd
+import matplotlib as plt
 
 API_KEY = os.environ['API_KEY']
 SITE_ID = os.environ['SITE_ID']
+
+DUKE_DATA = [
+    {'start': '2021-05-06',
+     'end': '2021-05-24',
+     'used': 270.0,
+     'delivered': 522.0},
+    {'start': '2021-05-25',
+     'end': '2021-06-03',
+     'used': 679.0,
+     'delivered': 593.0}
+]
 
 def issue_request(url):
     response = requests.get(url)
@@ -35,7 +48,7 @@ def get_data():
     y, m, d = get_ymd(end_date_str)
     end_date = datetime.datetime(y, m, d)
     done = False
-    energyDetails = {}
+    energy_details = {}
     while not done:
         one_year_out = datetime.datetime(start_date.year + 1, start_date.month, start_date.day)
         delta = end_date - one_year_out
@@ -50,15 +63,32 @@ def get_data():
         energy_detail_url += '?timeUnit=DAY&startTime=%s&endTime=%s&api_key=%s' % (start, end, API_KEY)
         detail = issue_request(energy_detail_url)
         for meter in detail['energyDetails']['meters']:
-            if meter['type'] not in energyDetails.keys():
-                energyDetails[meter['type']] = meter['values']
+            if meter['type'] not in energy_details.keys():
+                energy_details[meter['type']] = meter['values']
             else:
-                energyDetails[meter['type']] = energyDetails[meter['type']] + meter['values'][1:len(meter['values'])]
+                energy_details[meter['type']] = energy_details[meter['type']] + meter['values'][1:len(meter['values'])]
 
         if not done:
             start_date = one_year_out
-    return energyDetails
+    joined_energy_details = []
+    for i in range(0, len(energy_details['FeedIn'])):
+        feedIn = energy_details['FeedIn'][i].get('value', 0.0)
+        production = energy_details['Production'][i].get('value', 0.0)
+        consumption = energy_details['Consumption'][i].get('value', 0.0)
+        self_consumption = energy_details['SelfConsumption'][i].get('value', 0.0)
+        purchased = energy_details['Purchased'][i].get('value', 0.0)
+        joined_entry = {
+            'date': energy_details['FeedIn'][i]['date'],
+            'FeedIn': feedIn,
+            'Production': production,
+            'Consumption': consumption,
+            'SelfConsumption': self_consumption,
+            'Purchased': purchased
+        }
+        joined_energy_details.append(joined_entry)
+    return energy_details, joined_energy_details
 
 if __name__ == '__main__':
-    data = get_data()
+    data, joined_data = get_data()
     print(json.dumps(data, indent=4))
+    print(json.dumps(joined_data, indent=4))
