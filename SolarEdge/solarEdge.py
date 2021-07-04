@@ -32,16 +32,15 @@ def get_data(start_date=None, end_date=None):
     sites = issue_request('https://monitoringapi.solaredge.com/sites/list?api_key=%s' % API_KEY)
     overview = issue_request('https://monitoringapi.solaredge.com/site/%s/overview?api_key=%s' % (SITE_ID, API_KEY))
     details = issue_request('https://monitoringapi.solaredge.com/site/%s/details?api_key=%s' % (SITE_ID, API_KEY))
-    if start_date is None or end_date is None:
-        data_period = issue_request('https://monitoringapi.solaredge.com/site/%s/dataPeriod?api_key=%s' % (SITE_ID, API_KEY))
-        if start_date is None:
-            start_date_str = data_period['dataPeriod']['startDate']
-            y, m, d = get_ymd(start_date_str)
-            start_date = datetime.datetime(y, m, d)
-        if end_date is None:
-            end_date_str = data_period['dataPeriod']['endDate']
-            y, m, d = get_ymd(end_date_str)
-            end_date = datetime.datetime(y, m, d)
+    data_period = issue_request('https://monitoringapi.solaredge.com/site/%s/dataPeriod?api_key=%s' % (SITE_ID, API_KEY))
+    if start_date is None:
+        start_date = data_period['dataPeriod']['startDate']
+    y, m, d = get_ymd(start_date)
+    start_date = datetime.datetime(y, m, d)
+    if end_date is None:
+        end_date = data_period['dataPeriod']['endDate']
+    y, m, d = get_ymd(end_date)
+    end_date = datetime.datetime(y, m, d)
     done = False
     energy_details = {}
     while not done:
