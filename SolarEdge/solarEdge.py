@@ -24,18 +24,24 @@ def get_ymd(date_string):
     return int(date_string[0:4]), int(date_string[5:7]), int(date_string[8:10])
 
 
-def get_data():
+"""
+start_date and end_date are in the format 'yyyy-mm-dd'
+"""
+def get_data(start_date=None, end_date=None):
 
     sites = issue_request('https://monitoringapi.solaredge.com/sites/list?api_key=%s' % API_KEY)
     overview = issue_request('https://monitoringapi.solaredge.com/site/%s/overview?api_key=%s' % (SITE_ID, API_KEY))
     details = issue_request('https://monitoringapi.solaredge.com/site/%s/details?api_key=%s' % (SITE_ID, API_KEY))
-    data_period = issue_request('https://monitoringapi.solaredge.com/site/%s/dataPeriod?api_key=%s' % (SITE_ID, API_KEY))
-    start_date_str = data_period['dataPeriod']['startDate']
-    y, m, d = get_ymd(start_date_str)
-    start_date = datetime.datetime(y, m, d)
-    end_date_str = data_period['dataPeriod']['endDate']
-    y, m, d = get_ymd(end_date_str)
-    end_date = datetime.datetime(y, m, d)
+    if start_date is None or end_date is None:
+        data_period = issue_request('https://monitoringapi.solaredge.com/site/%s/dataPeriod?api_key=%s' % (SITE_ID, API_KEY))
+        if start_date is None:
+            start_date_str = data_period['dataPeriod']['startDate']
+            y, m, d = get_ymd(start_date_str)
+            start_date = datetime.datetime(y, m, d)
+        if end_date is None:
+            end_date_str = data_period['dataPeriod']['endDate']
+            y, m, d = get_ymd(end_date_str)
+            end_date = datetime.datetime(y, m, d)
     done = False
     energy_details = {}
     while not done:
@@ -66,15 +72,18 @@ def get_data():
         consumption = energy_details['Consumption'][i].get('value', 0.0)
         self_consumption = energy_details['SelfConsumption'][i].get('value', 0.0)
         purchased = energy_details['Purchased'][i].get('value', 0.0)
-        joined_entry = {
-            'date': energy_details['FeedIn'][i]['date'],
-            'FeedIn': feedIn/1000,
-            'Production': production/1000,
-            'Consumption': consumption/1000,
-            'SelfConsumption': self_consumption/1000,
-            'Purchased': purchased/1000
-        }
-        joined_energy_details.append(joined_entry)
+
+        if i == len(energy_details['FeedIn']) - 1:
+            if feedIn + production + consumption + self_consumption + purchased > 0.0:
+                joined_entry = {
+                    'date': energy_details['FeedIn'][i]['date'],
+                    'FeedIn': feedIn/1000,
+                    'Production': production/1000,
+                    'Consumption': consumption/1000,
+                    'SelfConsumption': self_consumption/1000,
+                    'Purchased': purchased/1000
+                }
+                joined_energy_details.append(joined_entry)
     return energy_details, joined_energy_details
 
 if __name__ == '__main__':
